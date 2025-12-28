@@ -15,20 +15,12 @@ namespace CShark_lab10
         public DbSet<TodaysCondition> TodaysConditions { get; set; }
         public ApplicationContext()
         {
-            //Database.EnsureDeleted();
             Database.EnsureCreated();
         }
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            optionsBuilder.UseSqlServer(@"Server=localhost;Database=lab10;Trusted_Connection=True; TrustServerCertificate=True");
-            //optionsBuilder.UseNpgsql($"Host=localhost;Port=5433;Database=tickersdb;Username=postgres;Password=351802", options =>
-            //{
-            //    options.CommandTimeout(300); // 5 минут
-            //    options.EnableRetryOnFailure(
-            //        maxRetryCount: 3,
-            //        maxRetryDelay: TimeSpan.FromSeconds(30),
-            //        errorCodesToAdd: null);
-            //});
+            optionsBuilder.UseSqlite("Data Source=dbase.db");
+
         }
     }
 
@@ -37,7 +29,7 @@ namespace CShark_lab10
         public int Id { get; set; }
         public string? Ticker { get; set; }
         public TodaysCondition? TodaysCondition { get; set; }
-        //[JsonPropertyName("c")]
+
         public List<Prices> Prices { get; set; } = new();
     }
 
@@ -48,7 +40,7 @@ namespace CShark_lab10
         public string? State { get; set; }
         public Tickers? Ticker { get; set; }
     }
-    internal class PricesDeserializer // вспомогательный классс для десериализации цен
+    internal class PricesDeserializer // вспомогательный клаcс для десериализации цен
     {
         [JsonPropertyName("c")]
         public double[]? Prices { get; set; }

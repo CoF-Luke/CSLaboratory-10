@@ -10,27 +10,25 @@ namespace CShark_lab10
 {
     internal class Program
     {
-        private static  HttpClient httpClient = new();
-        private const   string     file = @"C:\Users\nikpop\Desktop\ticker.txt";
-        private static  string?    apiKey; // from console
-        public  static  string?    pswd;
-        private static  DateOnly   dateFrom = new(2025, 10, 1);
-        private static  DateOnly   dateTo = new(2025, 10, 4);
+        private static HttpClient httpClient = new();
+        private const string file = "ticker.txt";
+        private static string? apiKey = "Vm5NQWwyNEJVbThPUTBxTjVKRHBTTG1Ldi12TVJ5a25oQUJiNTlXTURJVT0";
 
-        static async Task Main(string[] args)
+        private static DateOnly dateFrom = new(2025, 12, 20);
+        private static DateOnly dateTo = new(2025, 12, 23);
+
+        static async Task Main()
         {
-            apiKey = args[0];
-            pswd = args[1];
             using StreamReader reader = new(file);
             object locker = new object();
-            //using (ApplicationContext context = new ApplicationContext()) { context.Database.EnsureDeleted(); context.SaveChanges(); }
+
 
             int count = 0;
             var tasks = new List<Task>();
             await foreach (var s in GetTickerFromFile(file, reader))
             {
-                if (count % 20 == 0) Thread.Sleep(1000);
-                tasks.Add(SetTickerAndFriendsToDB(httpClient, s, locker));
+                if (count % 10 == 0) Thread.Sleep(1000);
+                tasks.Add(SetTickerToDB(httpClient, s, locker));
                 count++;
             }
             await Task.WhenAll(tasks);
@@ -48,14 +46,12 @@ namespace CShark_lab10
                             Include(t => t.TodaysCondition).
                             Where(t => t.Ticker == userTicker).
                             FirstOrDefault();
-            //for(int i = 0; i < ticker.Prices.Count; i++)
-            //{
-            //    Console.WriteLine($"{ticker.Prices[i].Price}\t{ticker.TodaysCondition.State}");
-            //}
-            Console.WriteLine($"{ticker.Prices.Last()} {ticker.TodaysCondition.State}");
-            //Console.WriteLine();
+
+            Console.WriteLine($"{ticker.Prices.Last().TickerId} {ticker.TodaysCondition.State}");
+
         }
-        static async Task SetTickerAndFriendsToDB(HttpClient httpClient, string readedTicker, object locker)
+
+        static async Task SetTickerToDB(HttpClient httpClient, string readedTicker, object locker)
         {
             string url = $"https://api.marketdata.app/v1/stocks/candles/D/" +
                 $"{readedTicker}/?from={dateFrom:o}&to={dateTo:o}&token={apiKey}";
@@ -70,33 +66,33 @@ namespace CShark_lab10
                 {
                     throw new Exception("Нулевой тикер");
                 }
-                lock (locker)
-                {
-                    using ApplicationContext context = new ApplicationContext();
-                    if (!context.Database.CanConnect()) throw new Exception("Невозможно подключиться к базе");
-                    Tickers ticker = CreateTickerInDB(context, readedTicker); // получаем тикер из бд или создаем
-                    SetPriceToDB(context, deserializedPrices, ticker.Id);
-                    SetTodaysConditionToDB(context, deserializedPrices, ticker.Id);
-                    //context.SaveChanges();
-                    Console.WriteLine("Таблицы записаны");
-                }
+
+                using ApplicationContext context = new ApplicationContext();
+                if (!context.Database.CanConnect()) throw new Exception("Невозможно подключиться к базе");
+                Tickers ticker = CreateTickerInDB(context, readedTicker); // получаем тикер из бд или создаем
+                SetPriceToDB(context, deserializedPrices, ticker.Id);
+                SetTodaysConditionToDB(context, deserializedPrices, ticker.Id);
+
+                Console.WriteLine("Таблицы записаны");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Exception on {readedTicker}: {ex}\n");
             }
         }
+
         static Tickers CreateTickerInDB(ApplicationContext context, string ticker) // получаем тикер из бд или создаем тикер
         {
             Tickers? Ticker = context.Tickers.AsNoTracking().FirstOrDefault(t => t.Ticker == ticker); // ищем тикер в бд
             if (Ticker is null)
             {
-                Ticker = new Tickers { Ticker = ticker }; // если не находим - сощдаем новый
+                Ticker = new Tickers { Ticker = ticker }; // если не находим - создаем новый
                 context.Add(Ticker);
                 context.SaveChanges();
             }
             return Ticker;
         }
+
         static void SetPriceToDB(ApplicationContext context, PricesDeserializer deserializedPrices, int TickerId)
         {
             int size = deserializedPrices.Prices.Length; // размер массива с ценами
@@ -109,13 +105,14 @@ namespace CShark_lab10
             {
                 var newPrice = new Prices { TickerId = TickerId, Price = deserializedPrices.Prices[i], Date = date };
                 date = date.AddDays(1); // увеличиваем дату на день
-                if (pricesFromDB.Count > 0 && pricesFromDB.Contains(newPrice, comparer)) continue; // если цена существует, не ддобаляем ничего
+                if (pricesFromDB.Count > 0 && pricesFromDB.Contains(newPrice, comparer)) continue; // если цена существует, не добаляем ничего
                 prices.Add(newPrice);
             }
 
             context.AddRange(prices);
             context.SaveChanges();
         }
+
         static void SetTodaysConditionToDB(ApplicationContext context, PricesDeserializer deserializedPrices, int TickerId)
         {
             try
@@ -141,7 +138,8 @@ namespace CShark_lab10
                 Console.WriteLine(ex);
             }
         }
-        static async IAsyncEnumerable<string> GetTickerFromFile(string file, StreamReader reader) // асинхронная корутина для считывания файла
+
+        static async IAsyncEnumerable<string> GetTickerFromFile(string file, StreamReader reader)
         {
             string? text;
             while ((text = await reader.ReadLineAsync()) != null)
